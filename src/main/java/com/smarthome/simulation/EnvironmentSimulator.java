@@ -5,10 +5,13 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import com.smarthome.rules.Scheduler;
+
 public class EnvironmentSimulator {
     private int timeInMinutes = 720;
     private List<RoomEnvironment> rooms = new ArrayList<>();
     private Timer timer;
+    private Scheduler scheduler = new Scheduler(); 
 
     // Checks if room exists; if not, creates it
     public RoomEnvironment getOrCreateRoom(String roomName) {
@@ -41,11 +44,15 @@ public class EnvironmentSimulator {
         }, 0, 1000);
     }
 
+    public Scheduler getScheduler(){return scheduler;}
+
     private void tick() {
         timeInMinutes = (timeInMinutes + 10) % 1440;
         double outsideTemp = 20.0 - (5.0 * Math.cos(((timeInMinutes - 180) / 1440.0) * 2 * Math.PI));
         double outsideLight = 50.0 - (50.0 * Math.cos((timeInMinutes / 1440.0) * 2 * Math.PI));
 
+        scheduler.checkSchedule(getFormattedTime());
+        
         for (RoomEnvironment room : rooms) {
             room.updatePhysics(outsideTemp, outsideLight);
             room.simulateRandomMotion(0.05);

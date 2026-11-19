@@ -13,6 +13,7 @@ import com.smarthome.sensors.SmartLightSensor;
 import com.smarthome.sensors.SmartMotionSensor;
 import com.smarthome.simulation.EnvironmentSimulator;
 import com.smarthome.simulation.RoomEnvironment;
+import com.smarthome.rules.TimeRule;
 
 import javax.swing.*;
 import java.awt.*;
@@ -57,6 +58,10 @@ public class SmartHomeDashboard extends JFrame {
         addRuleBtn.addActionListener(e -> openAddRuleDialog());
         topPanel.add(addRuleBtn);
 
+        JButton addScheduleBtn = new JButton("Add Schedule");
+        addScheduleBtn.addActionListener(e -> openAddScheduleDialog());
+        topPanel.add(addScheduleBtn);
+
         JButton manageRulesBtn = new JButton("Manage Rules");
         manageRulesBtn.addActionListener(e -> openManageRulesDialog());
         topPanel.add(manageRulesBtn);
@@ -94,7 +99,7 @@ public class SmartHomeDashboard extends JFrame {
     private void openAddDeviceDialog() {
         JTextField roomNameField = new JTextField();
         JTextField deviceNameField = new JTextField();
-        String[] types = {"Light", "AC", "Heat Sensor", "Light Sensor", "Motion Sensor"};
+        String[] types = {"Light", "AC", "Blinds", "Heat Sensor", "Light Sensor", "Motion Sensor"};
         JComboBox<String> typeBox = new JComboBox<>(types);
 
         Object[] message = { "Room Name:", roomNameField, "Custom Name (Devices):", deviceNameField, "Type:", typeBox };
@@ -174,6 +179,19 @@ public class SmartHomeDashboard extends JFrame {
         }
     }
 
+    private JPanel createTimeRuleItem(TimeRule rule, JDialog dialog) {
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        p.add(new JLabel(rule.getRuleName()));
+        JButton delBtn = new JButton("Delete");
+        delBtn.addActionListener(e -> {
+            simulator.getScheduler().removeRule(rule);
+            dialog.dispose();
+            openManageRulesDialog();
+        });
+        p.add(delBtn);
+        return p;
+    }
+
     private void openManageRulesDialog() {
         JDialog dialog = new JDialog(this, "Manage Rules", true);
         dialog.setSize(400, 400);
@@ -193,9 +211,52 @@ public class SmartHomeDashboard extends JFrame {
             }
         }
 
+        for (TimeRule rule : simulator.getScheduler().getRules()) {
+            panel.add(createTimeRuleItem(rule, dialog));
+        }
+
         dialog.add(new JScrollPane(panel));
         dialog.setVisible(true);
     }
+
+    private void openAddScheduleDialog() {
+    if (simulator.getRooms().isEmpty()) return;
+
+    JComboBox<String> roomBox = new JComboBox<>();
+    for (RoomEnvironment room : simulator.getRooms()) roomBox.addItem(room.getRoomName());
+
+    JTextField timeField = new JTextField("08:00");
+    JTextField targetDeviceNameField = new JTextField();
+    JComboBox<String> actionBox = new JComboBox<>(new String[]{"Turn ON", "Turn OFF"});
+
+    Object[] message = {
+        "Room:", roomBox,
+        "Time (HH:MM, 10-min steps):", timeField,
+        "Target Device Name:", targetDeviceNameField,
+        "Action:", actionBox
+    };
+
+    if (JOptionPane.showConfirmDialog(this, message, "Add Schedule", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
+        RoomEnvironment room = simulator.getOrCreateRoom((String) roomBox.getSelectedItem());
+        String targetName = targetDeviceNameField.getText().trim();
+        String targetTime = timeField.getText().trim();
+
+        SmartDevice targetDevice = room.getDevices().stream()
+                .filter(d -> d.getName().equalsIgnoreCase(targetName)).findFirst().orElse(null);
+
+        if (targetDevice == null) {
+            JOptionPane.showMessageDialog(this, "Device '" + targetName + "' not found.");
+            return;
+        }
+
+        Command cmd = actionBox.getSelectedItem().equals("Turn ON") ?
+                new TurnOnCommand(targetDevice) : new TurnOffCommand(targetDevice);
+
+        String ruleName = "Schedule [" + targetTime + "]: " + room.getRoomName() + " " + targetName;
+        TimeRule rule = new TimeRule(ruleName, targetTime, cmd, hub);
+        simulator.getScheduler().addRule(rule);
+    }
+}
 
     private JPanel createRuleItem(AutomationRule rule, Object sensor, JDialog dialog) {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT));

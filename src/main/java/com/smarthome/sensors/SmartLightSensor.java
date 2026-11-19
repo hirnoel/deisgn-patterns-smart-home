@@ -19,6 +19,7 @@ public class SmartLightSensor {
     }
 
     public List<AutomationRule> getRules() { return rules; }
+    
     public void removeRule(AutomationRule rule) { rules.remove(rule); }
 
     // Called by your Simulation Engine to change the ambient light
